@@ -1,0 +1,10 @@
+{
+  "name": "pathway",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "install:all": "npm.cmd install --prefix backend && npm.cmd install --prefix frontend",
+    "seed": "npm.cmd run seed --prefix backend"
+  }
+}
