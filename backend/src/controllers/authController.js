@@ -16,18 +16,37 @@ async function collegeExists(id) {
   return Boolean(await College.collection.findOne({ $or: ids }, { projection: { _id: 1 } }));
 }
 
+function tenantUsernamePattern(tenant, role) {
+  const tenantId = String(tenant._id ?? tenant.id ?? tenant);
+  const prefix = role === "university" ? "admin" : "hiring";
+  return role === "university"
+    ? `${prefix}@${tenantId}.edu`
+    : `${prefix}@${tenantId}.com`;
+}
+
+function legacyTenantUsername(tenant, role) {
+  const tenantId = String(tenant._id ?? tenant.id ?? tenant);
+  const prefix = role === "university" ? "admin" : "hiring";
+  return `${prefix}+${tenantId}@pathway.local`;
+}
+
 async function ensureTenantLogin(tenant, role) {
-  const existing = await User.findOne({ role, tenantId: tenant._id }, "username").lean();
+  const primaryUsername = tenantUsernamePattern(tenant, role);
+  const legacyUsername = legacyTenantUsername(tenant, role);
+  const existing = await User.findOne({
+    role,
+    tenantId: tenant._id,
+    $or: [{ username: primaryUsername }, { username: legacyUsername }],
+  }, "username").lean();
+
   if (existing) return existing.username;
 
-  const prefix = role === "university" ? "admin" : "hiring";
-  const username = `${prefix}+${tenant._id}@pathway.local`;
   try {
     const created = await User.create({
       role,
       tenantId: tenant._id,
       refId: null,
-      username,
+      username: primaryUsername,
       passwordHash: bcrypt.hashSync(DEMO_TENANT_PASSWORD, 10),
       label: `${tenant.name} · ${role === "university" ? "University admin" : "Hiring team"}`,
     });
@@ -35,7 +54,7 @@ async function ensureTenantLogin(tenant, role) {
   } catch (error) {
     if (error?.code !== 11000) throw error;
     const concurrentUser = await User.findOne({ role, tenantId: tenant._id }, "username").lean();
-    return concurrentUser?.username || username;
+    return concurrentUser?.username || primaryUsername;
   }
 }
 
@@ -44,7 +63,14 @@ export async function login(req, res) {
   if (!identifier || !password) return res.status(400).json({ error: "username or email and password are required" });
 
   const normalizedIdentifier = identifier.trim().toLowerCase();
+  const legacyIdentifier = normalizedIdentifier.includes("@pathway.local") ? normalizedIdentifier : null;
+
   let user = await User.findOne({ $or: [{ username: normalizedIdentifier }, { email: normalizedIdentifier }] });
+
+  if (!user && legacyIdentifier) {
+    user = await User.findOne({ username: legacyIdentifier });
+  }
+
   if (!user) {
     const student = await Student.findOne({ email: normalizedIdentifier }, "_id").lean();
     if (student) user = await User.findOne({ refId: student._id.toString(), role: "student" });

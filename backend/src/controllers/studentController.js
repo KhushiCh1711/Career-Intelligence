@@ -2,11 +2,21 @@ import Student from "../models/Student.js";
 import User from "../models/User.js";
 import Company from "../models/Company.js";
 import { ASSESSMENT_QUESTIONS, SKILLS, computeReadiness, computeMatch, computeEvidenceBoost } from "../utils/scoring.js";
+import { SKILL_ASSESSMENTS } from "../utils/skillAssessments.js";
 
 const CODING_CHALLENGES = [
   { id: "js-async", title: "Async JavaScript", skill: "JavaScript", prompt: "What does an async function return?", options: ["A Promise", "A CSS rule", "Only a number", "A database connection"], answer: 0 },
   { id: "sql-filter", title: "Filter a dataset", skill: "SQL", prompt: "Which clause filters rows before grouping?", options: ["ORDER BY", "WHERE", "CREATE", "ALTER"], answer: 1 },
   { id: "react-state", title: "React state", skill: "React", prompt: "Which hook stores local component state?", options: ["useEffect", "useMemo", "useState", "useRef"], answer: 2 },
+];
+
+const CODING_PLATFORMS = [
+  { id: "leetcode", name: "LeetCode", hostname: "leetcode.com", description: "Algorithms, data structures, and interview practice." },
+  { id: "hackerrank", name: "HackerRank", hostname: "hackerrank.com", description: "Skill certifications and timed coding tracks." },
+  { id: "geeksforgeeks", name: "GeeksforGeeks", hostname: "geeksforgeeks.org", description: "DSA practice, tutorials, and company problems." },
+  { id: "codeforces", name: "Codeforces", hostname: "codeforces.com", description: "Competitive programming contests and rating." },
+  { id: "codechef", name: "CodeChef", hostname: "codechef.com", description: "Contests and practice for competitive programmers." },
+  { id: "codingninjas", name: "Coding Ninjas", hostname: "codingninjas.com", description: "Courses and structured coding practice." },
 ];
 
 async function rolesForSkills(skills) {
@@ -72,14 +82,15 @@ export async function getMe(req, res) {
   const student = await Student.findById(req.auth.refId).lean();
   if (!student) return res.status(404).json({ error: "Student not found" });
 
+  const skills = student.skills && typeof student.skills === "object" ? student.skills : {};
   const evidence = evidenceSummary(student);
-  const readiness = Math.min(100, computeReadiness(student.skills) + evidence.boost);
-  const allRoles = await rolesForSkills(student.skills);
+  const readiness = Math.min(100, computeReadiness(skills) + evidence.boost);
+  const allRoles = await rolesForSkills(skills);
   const roles = allRoles.slice(0, 6);
   const interviewReadyRoles = allRoles.filter((role) => role.match >= 70).slice(0, 6);
   const gapTargets = {};
   allRoles.slice(0, 10).forEach((role) => Object.entries(role.requiredSkills).forEach(([skill, target]) => {
-    const current = Number(student.skills?.[skill]) || 0;
+    const current = Number(skills[skill]) || 0;
     const gap = Math.max(0, Number(target) - current);
     if (gap > (gapTargets[skill]?.gap || 0)) gapTargets[skill] = { skill, current, target: Number(target), gap };
   }));
@@ -90,7 +101,7 @@ export async function getMe(req, res) {
     name: student.name,
     department: student.department,
     avatarColor: student.avatarColor,
-    skills: student.skills,
+    skills,
     readiness,
     evidence,
     history: student.history,
@@ -100,15 +111,45 @@ export async function getMe(req, res) {
       interviewReadyRoles: interviewReadyRoles.map(({ requiredSkills, ...role }) => role),
       nextRole: allRoles.find((role) => role.match < 70) ? (({ requiredSkills, ...role }) => role)(allRoles.find((role) => role.match < 70)) : null,
       gapSkills,
-      companyReadiness: roleReport(allRoles, student.skills),
+      companyReadiness: roleReport(allRoles, skills),
     },
-    roadmap: student.roadmap,
+    roadmap: student.roadmap || [],
     projects: student.projects || [],
     github: student.github || null,
     codingResults: student.codingResults || [],
     interviews: student.interviews || [],
     assessmentComplete: student.assessmentComplete,
+    interestFields: student.interestFields || [],
   });
+}
+
+export async function saveStudentInterestProfile(req, res) {
+  const rawProfile = req.body?.profile ?? req.body;
+  if (!rawProfile || !String(rawProfile.field || "").trim()) {
+    return res.status(400).json({ error: "Field selection is required" });
+  }
+
+  const student = await Student.findById(req.auth.refId);
+  if (!student) return res.status(404).json({ error: "Student not found" });
+  if (!student.skills || typeof student.skills !== "object" || Array.isArray(student.skills)) student.skills = {};
+
+  const nextEntry = {
+    field: String(rawProfile.field).trim(),
+    months: Number(rawProfile.months || 0),
+    score: Number(rawProfile.score || 0),
+    skills: Array.isArray(rawProfile.skills)
+      ? rawProfile.skills.map((skill) => ({ label: String(skill.label || ""), value: Number(skill.value || 0) }))
+      : [],
+    completedAt: new Date(),
+  };
+
+  const existing = Array.isArray(student.interestFields) ? student.interestFields : [];
+  const index = existing.findIndex((entry) => entry.field === nextEntry.field);
+  if (index >= 0) existing[index] = nextEntry; else existing.push(nextEntry);
+  student.interestFields = existing;
+  await student.save();
+
+  res.status(201).json({ profile: nextEntry, interestFields: student.interestFields });
 }
 
 export async function submitAssessment(req, res) {
@@ -215,6 +256,76 @@ export function getCodingChallenges(req, res) {
   res.json(CODING_CHALLENGES.map(({ answer, ...challenge }) => challenge));
 }
 
+export async function getSkillAssessments(req, res) {
+  const student = await Student.findById(req.auth.refId, "skillAssessments").lean();
+  if (!student) return res.status(404).json({ error: "Student not found" });
+  const completed = Object.fromEntries((student.skillAssessments || []).map((item) => [item.skill, item]));
+  res.json(SKILL_ASSESSMENTS.map(({ questions, coding, ...assessment }) => ({
+    ...assessment,
+    questions: questions.map(({ answer, ...item }) => item),
+    coding,
+    result: completed[assessment.skill] || null,
+  })));
+}
+
+export async function submitSkillAssessment(req, res) {
+  const assessment = SKILL_ASSESSMENTS.find((item) => item.id === req.params.skillId);
+  if (!assessment) return res.status(404).json({ error: "Skill assessment not found" });
+  const answers = req.body.answers;
+  const codingResponses = req.body.codingResponses;
+  if (!answers || typeof answers !== "object" || !codingResponses || typeof codingResponses !== "object") {
+    return res.status(400).json({ error: "Complete the MCQs and coding problems" });
+  }
+  if (assessment.questions.some((item) => !Number.isInteger(answers[item.id]) || answers[item.id] < 0 || answers[item.id] >= item.options.length)) {
+    return res.status(400).json({ error: "Answer all 10 multiple-choice questions" });
+  }
+  if (assessment.coding.some((item) => typeof codingResponses[item.id] !== "string" || !codingResponses[item.id].trim())) {
+    return res.status(400).json({ error: "Submit both coding problem responses" });
+  }
+  const correct = assessment.questions.filter((item) => answers[item.id] === item.answer).length;
+  const mcqScore = Math.round((correct / assessment.questions.length) * 100);
+  const codingScore = Math.round((assessment.coding.filter((item) => codingResponses[item.id].trim()).length / assessment.coding.length) * 20);
+  const score = Math.round(mcqScore * 0.8 + codingScore);
+  const student = await Student.findById(req.auth.refId);
+  if (!student) return res.status(404).json({ error: "Student not found" });
+  const result = { skill: assessment.skill, score, mcqScore, codingResponses, completedAt: new Date() };
+  student.skillAssessments = (student.skillAssessments || []).filter((item) => item.skill !== assessment.skill);
+  student.skillAssessments.push(result);
+  student.skills[assessment.skill] = score;
+  student.markModified("skills");
+  await student.save();
+  res.json({ skill: assessment.skill, score, mcqScore, codingScore, completedAt: result.completedAt });
+}
+
+export async function getCodingPlatforms(req, res) {
+  const student = await Student.findById(req.auth.refId, "codingPlatforms").lean();
+  if (!student) return res.status(404).json({ error: "Student not found" });
+  const connected = Object.fromEntries((student.codingPlatforms || []).map((item) => [item.platform, item]));
+  res.json({ platforms: CODING_PLATFORMS.map(({ hostname, ...platform }) => ({ ...platform, connected: connected[platform.id] || null })) });
+}
+
+export async function connectCodingPlatform(req, res) {
+  const { platform, url } = req.body;
+  const definition = CODING_PLATFORMS.find((item) => item.id === platform);
+  if (!definition) return res.status(400).json({ error: "Choose a supported coding platform" });
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(String(url || "").trim());
+  } catch {
+    return res.status(400).json({ error: "Enter a valid profile URL" });
+  }
+  if (parsedUrl.protocol !== "https:" || !(parsedUrl.hostname === definition.hostname || parsedUrl.hostname.endsWith(`.${definition.hostname}`)) || parsedUrl.pathname === "/") {
+    return res.status(400).json({ error: `Use a public ${definition.name} profile URL` });
+  }
+  const student = await Student.findById(req.auth.refId);
+  if (!student) return res.status(404).json({ error: "Student not found" });
+  const connection = { platform: definition.id, url: parsedUrl.toString(), connectedAt: new Date() };
+  student.codingPlatforms = (student.codingPlatforms || []).filter((item) => item.platform !== definition.id);
+  student.codingPlatforms.push(connection);
+  await student.save();
+  res.json({ connection });
+}
+
 export async function submitCodingChallenge(req, res) {
   const challenge = CODING_CHALLENGES.find((item) => item.id === req.params.challengeId);
   if (!challenge) return res.status(404).json({ error: "Coding challenge not found" });
@@ -266,7 +377,18 @@ export async function addInterviewEvidence(req, res) {
   if (!Number.isFinite(numericScore) || numericScore < 0 || numericScore > 100) return res.status(400).json({ error: "Interview score must be between 0 and 100" });
   const student = await Student.findById(req.auth.refId);
   if (!student) return res.status(404).json({ error: "Student not found" });
-  student.interviews.push({ role: role.trim(), score: Math.round(numericScore), feedback: feedback.trim() });
-  await student.save();
-  res.status(201).json({ interview: student.interviews[student.interviews.length - 1], evidence: evidenceSummary(student) });
+  const interview = {
+    role: String(role).trim() || "General interview",
+    score: Math.round(numericScore),
+    feedback: String(feedback).trim(),
+    completedAt: new Date(),
+  };
+  const result = await Student.updateOne(
+    { _id: student._id },
+    { $push: { interviews: interview } },
+    { runValidators: true },
+  );
+  if (!result.matchedCount) return res.status(404).json({ error: "Student not found" });
+  student.interviews.push(interview);
+  res.status(201).json({ interview, evidence: evidenceSummary(student) });
 }

@@ -64,7 +64,8 @@ College ids: `ccsu`, `dit`, `pni`. Company ids: `infosys`, `razorpay`, `deloitte
 
 1. Get a free key at https://aistudio.google.com/app/apikey
 2. Put it in `backend/.env` as `GEMINI_API_KEY=...`
-3. Restart `npm run dev` — no other setup needed (uses Node's built-in `fetch`, no extra package)
+3. Optionally set `GEMINI_FALLBACK_MODELS=gemini-3.1-flash-lite,gemini-3.5-flash,gemini-3.6-flash` to use other models when the primary is busy.
+4. Restart `npm run dev` — no other setup needed (uses Node's built-in `fetch`, no extra package)
 
 The student's skills, readiness, matched roles, and roadmap are sent as context on every request,
 so answers stay grounded in real data instead of the model guessing. Language is controlled per

@@ -40,10 +40,32 @@ const codingResultSchema = new mongoose.Schema({
   completedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
+const codingPlatformSchema = new mongoose.Schema({
+  platform: { type: String, required: true },
+  url: { type: String, required: true },
+  connectedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const skillAssessmentSchema = new mongoose.Schema({
+  skill: { type: String, required: true },
+  score: { type: Number, min: 0, max: 100, required: true },
+  mcqScore: { type: Number, min: 0, max: 100, required: true },
+  codingResponses: { type: Map, of: String, default: {} },
+  completedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const interviewSchema = new mongoose.Schema({
   role: { type: String, required: true },
   score: { type: Number, min: 0, max: 100, required: true },
   feedback: { type: String, default: "" },
+  completedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const interestFieldSchema = new mongoose.Schema({
+  field: { type: String, required: true },
+  months: { type: Number, default: 0 },
+  score: { type: Number, default: 0 },
+  skills: { type: [{ label: String, value: Number }], default: [] },
   completedAt: { type: Date, default: Date.now },
 }, { _id: false });
 
@@ -58,14 +80,17 @@ const studentSchema = new mongoose.Schema({
   stream: { type: String, default: null },
   department: { type: String, required: true },
   avatarColor: { type: String, required: true },
-  skills: { type: Object, required: true }, // e.g. { JavaScript: 82, React: 60, ... }
+  skills: { type: Object, required: true, default: () => ({}) }, // e.g. { JavaScript: 82, React: 60, ... }
   history: [historyPointSchema],
   roadmap: [roadmapStepSchema],
   assessmentComplete: { type: Boolean, default: false },
   projects: { type: [projectSchema], default: [] },
   github: { type: githubSchema, default: () => ({}) },
   codingResults: { type: [codingResultSchema], default: [] },
+  codingPlatforms: { type: [codingPlatformSchema], default: [] },
+  skillAssessments: { type: [skillAssessmentSchema], default: [] },
   interviews: { type: [interviewSchema], default: [] },
+  interestFields: { type: [interestFieldSchema], default: [] },
 }, { _id: false });
 
 export default mongoose.model("Student", studentSchema);
