@@ -4,32 +4,32 @@ import { C } from "../../theme.js";
 
 const alerts = [
   {
-    platform: "Hackerrank",
-    name: "CodeSprint 2026",
-    date: "18 Oct 2026",
-    mode: "Remote",
-    highlight: "AI + product engineering challenge",
+    platform: "Unstop",
+    name: "Open hackathons",
+    scope: "India-focused",
+    highlight: "Student competitions with current registration status",
+    url: "https://unstop.com/hackathons?oppstatus=open",
   },
   {
-    platform: "Google Developer Group",
-    name: "Build with Cloud",
-    date: "22 Oct 2026",
-    mode: "Hybrid",
-    highlight: "Hands-on workshop on cloud deployments",
+    platform: "Devfolio",
+    name: "Hackathons",
+    scope: "Global and online",
+    highlight: "Builder events across web3, AI, and emerging technology",
+    url: "https://devfolio.co/hackathons",
   },
   {
-    platform: "Microsoft Reactor",
-    name: "Secure by Design",
-    date: "28 Oct 2026",
-    mode: "Online",
-    highlight: "Cybersecurity and application hardening session",
+    platform: "Devpost",
+    name: "Online hackathons",
+    scope: "Global",
+    highlight: "Remote events across software, data, and emerging tech",
+    url: "https://devpost.com/hackathons",
   },
   {
-    platform: "NVIDIA Developer",
-    name: "AI/ML Lab Bootcamp",
-    date: "03 Nov 2026",
-    mode: "Remote",
-    highlight: "Model building and practical ML workflows",
+    platform: "Major League Hacking",
+    name: "Student hackathon events",
+    scope: "2026 season",
+    highlight: "Student hackathons hosted by university communities",
+    url: "https://mlh.io/seasons/2026/events",
   },
 ];
 
@@ -39,8 +39,8 @@ export default function HackathonsPage() {
       <div className="tool-heading">
         <div>
           <div className="tool-kicker">Opportunities feed</div>
-          <h1>Hackathons and workshop alerts</h1>
-          <p>Track the latest competitions, student workshops, and practical learning events that can sharpen your readiness.</p>
+          <h1>Hackathon alerts</h1>
+          <p>Browse live event directories. Listings and registration status are maintained by each platform.</p>
         </div>
         <BellRing size={30} color={C.green700} />
       </div>
@@ -50,21 +50,21 @@ export default function HackathonsPage() {
           <div key={`${item.platform}-${item.name}`} style={{ background: "#fff", border: `1px solid ${C.border}`, borderRadius: 20, padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <div style={{ color: C.green700, fontWeight: 700 }}>{item.platform}</div>
-              <div style={{ background: C.green100, color: C.green700, borderRadius: 999, padding: "5px 8px", fontSize: 11, fontWeight: 700 }}>{item.mode}</div>
+              <div style={{ background: C.green100, color: C.green700, borderRadius: 999, padding: "5px 8px", fontSize: 11, fontWeight: 700 }}>{item.scope}</div>
             </div>
 
             <div style={{ fontWeight: 800, color: C.ink, marginTop: 14, marginBottom: 8 }}>{item.name}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.sub, fontSize: 14, marginBottom: 8 }}>
               <CalendarDays size={14} />
-              {item.date}
+              Live listings
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.sub, fontSize: 14, marginBottom: 10 }}>
               <Trophy size={14} />
               {item.highlight}
             </div>
-            <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "none", borderRadius: 10, background: C.green900, color: "#fff", padding: "10px 12px", fontWeight: 700, cursor: "pointer" }}>
+            <a href={item.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "none", borderRadius: 10, background: C.green900, color: "#fff", padding: "10px 12px", fontWeight: 700, textDecoration: "none" }}>
               View details <ExternalLink size={14} />
-            </button>
+            </a>
           </div>
         ))}
       </div>
